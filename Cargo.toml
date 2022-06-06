@@ -24,10 +24,22 @@ wasm-bindgen-futures = "0.4.30"
 web-sys = { version = "0.3.53", features = [
     "Document",
     "Window",
-    "Element",
+    "Element", 
+
+    # Image loading support
+    "Request",
+    "RequestInit",
+    "RequestMode",
+    "Headers",
+    "Response",
+    "ImageBitmap",
+    "Blob"
 ]}
+js-sys = "0.3.57"
+cgmath = "0.18"
 
 [dependencies.image]
 version = "0.24"
 default-features = false
 features = ["png", "jpeg"]
+

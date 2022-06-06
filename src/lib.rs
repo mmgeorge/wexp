@@ -1,9 +1,11 @@
 mod texture_resource;
+mod camera; 
 
 use std::error::Error;
 use std::mem;
 use bytemuck::Pod;
 use bytemuck::Zeroable;
+use camera::Camera;
 use texture_resource::TextureResource;
 use wasm_bindgen::prelude::*;
 use web_sys::console;
@@ -81,7 +83,9 @@ struct State {
   vertex_buffer: Buffer,
   vertex_count: u32,
 
-  diffuse_bind_group: BindGroup, 
+  diffuse_bind_group: BindGroup,
+
+  camera: Camera,
 }
 
 impl State {
@@ -134,7 +138,9 @@ impl State {
     surface.configure(&device, &config);
 
     let diffuse_bytes = include_bytes!("happy.png");
-    let diffuse_resource = TextureResource::from_bytes(&device, &queue, diffuse_bytes, "diffuse-texture"); 
+    let diffuse_resource = TextureResource::from_bytes(&device, &queue, diffuse_bytes, "diffuse-texture");
+    // let diffuse_resource = TextureResource::from_url(&device, &queue, "./happy.png", "diffuse-texture")
+    //     .await.expect("Get diffuse resource"); 
 
     let texture_bind_group_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
       label: Some("Diffuse texture bind group"), 
@@ -231,9 +237,11 @@ impl State {
       multiview: None
     });
 
-    let vertex_count = VERTS.len() as u32; 
+    let vertex_count = VERTS.len() as u32;
 
-    Self { surface, device, queue, config, size, render_pipeline, vertex_buffer, vertex_count, diffuse_bind_group }
+    let camera = Camera::new(size.width as f32 / size.height as f32); 
+
+    Self { surface, device, queue, config, size, render_pipeline, vertex_buffer, vertex_count, diffuse_bind_group, camera }
   }
 
   fn resize(&mut self, new_size: PhysicalSize<u32>) {
