@@ -5,11 +5,14 @@ use std::error::Error;
 use std::mem;
 use bytemuck::Pod;
 use bytemuck::Zeroable;
+use bytemuck::cast_slice;
 use camera::Camera;
+use camera::CameraUniform;
 use texture_resource::TextureResource;
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 use wgpu::TextureUsages;
+use wgpu::util::BufferInitDescriptor;
 use wgpu::util::DeviceExt;
 use wgpu::*; 
 use winit::{
@@ -86,6 +89,9 @@ struct State {
   diffuse_bind_group: BindGroup,
 
   camera: Camera,
+  camera_uniform: CameraUniform,
+  camera_buf: Buffer,
+  camera_bind_group: BindGroup
 }
 
 impl State {
@@ -187,12 +193,50 @@ impl State {
       source: ShaderSource::Wgsl(include_str!("shader.wgsl").into())
     });
 
-    // or
-    // let shader = device.create_shader_module(&include_wgsl!("shader.wgsl"));
+    let camera = Camera::new(config.width as f32 / config.height as f32);
+    let mut camera_uniform = CameraUniform::new();
+
+    camera_uniform.update(&camera);
+
+    let camera_buf = device.create_buffer_init(&BufferInitDescriptor {
+      label: Some("Camera buf"),
+      contents: cast_slice(&[camera_uniform]),
+      usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST
+    });
+
+    let camera_layout = device.create_bind_group_layout(&BindGroupLayoutDescriptor {
+      label: Some("Camera bind group layout"),
+      entries: &[
+        BindGroupLayoutEntry {
+          count: None,
+          binding: 0,
+          visibility: ShaderStages::VERTEX,
+          ty: BindingType::Buffer {
+            ty: BufferBindingType::Uniform,
+            has_dynamic_offset: false,
+            min_binding_size: None
+          }
+        }
+      ]
+    });
+
+    let camera_bind_group = device.create_bind_group(&BindGroupDescriptor {
+      label: Some("Camera bind group"), 
+      layout: &camera_layout,
+      entries: &[
+        BindGroupEntry {
+          binding: 0,
+          resource: camera_buf.as_entire_binding()
+        }
+      ]
+    });
 
     let render_pipeline_layout = device.create_pipeline_layout(&PipelineLayoutDescriptor {
       label: Some("Render pipeline layout"),
-      bind_group_layouts: &[&texture_bind_group_layout],
+      bind_group_layouts: &[
+        &texture_bind_group_layout,
+        &camera_layout,
+      ],
       push_constant_ranges: &[]
     });
 
@@ -239,9 +283,8 @@ impl State {
 
     let vertex_count = VERTS.len() as u32;
 
-    let camera = Camera::new(size.width as f32 / size.height as f32); 
 
-    Self { surface, device, queue, config, size, render_pipeline, vertex_buffer, vertex_count, diffuse_bind_group, camera }
+    Self { surface, device, queue, config, size, render_pipeline, vertex_buffer, vertex_count, diffuse_bind_group, camera, camera_bind_group, camera_buf, camera_uniform }
   }
 
   fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -297,6 +340,7 @@ impl State {
 
     render_pass.set_pipeline(&self.render_pipeline);
     render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
+    render_pass.set_bind_group(1, &self.camera_bind_group, &[]);
     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); 
     render_pass.draw(0..self.vertex_count, 0..1); 
 
